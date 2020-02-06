@@ -762,10 +762,13 @@ int ProxyResolverV8::SetPacScript(const android::String16& script_data) {
   if (script_data.size() == 0)
     return ERR_PAC_SCRIPT_FAILED;
 
+  // Disable JIT
+  static const char kNoOpt[] = "--no-opt";
+  v8::V8::SetFlagsFromString(kNoOpt, strlen(kNoOpt));
+
   // Try parsing the PAC script.
-  ArrayBufferAllocator allocator;
   v8::Isolate::CreateParams create_params;
-  create_params.array_buffer_allocator = &allocator;
+  create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 
   context_ = new Context(js_bindings_, error_listener_, v8::Isolate::New(create_params));
   int rv;
