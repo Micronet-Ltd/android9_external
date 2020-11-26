@@ -1,7 +1,7 @@
 /*
  * Threading primitives for CUPS.
  *
- * Copyright © 2009-2018 by Apple Inc.
+ * Copyright 2009-2017 by Apple Inc.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
@@ -56,16 +56,8 @@ _cupsCondWait(_cups_cond_t  *cond,	/* I - Condition */
   {
     struct timespec abstime;		/* Timeout */
 
-    clock_gettime(CLOCK_REALTIME, &abstime);
-
-    abstime.tv_sec  += (long)timeout;
-    abstime.tv_nsec += (long)(1000000000 * (timeout - (long)timeout));
-
-    while (abstime.tv_nsec >= 1000000000)
-    {
-      abstime.tv_nsec -= 1000000000;
-      abstime.tv_sec ++;
-    };
+    abstime.tv_sec  = (long)timeout;
+    abstime.tv_nsec = (long)(1000000000 * (timeout - (long)timeout));
 
     pthread_cond_timedwait(cond, mutex, &abstime);
   }
@@ -208,7 +200,7 @@ _cupsThreadWait(_cups_thread_t thread)	/* I - Thread ID */
 }
 
 
-#elif defined(_WIN32)
+#elif defined(WIN32)
 #  include <process.h>
 
 
@@ -521,23 +513,13 @@ _cupsThreadCreate(
     _cups_thread_func_t func,		/* I - Entry point */
     void                *arg)		/* I - Entry point context */
 {
-  fputs("DEBUG: CUPS was compiled without threading support, no thread created.\n", stderr);
+  fputs("DEBUG: CUPS was compiled without threading support, no thread "
+        "created.\n", stderr);
 
   (void)func;
   (void)arg;
 
   return (0);
-}
-
-
-/*
- * '_cupsThreadDetach()' - Tell the OS that the thread is running independently.
- */
-
-void
-_cupsThreadDetach(_cups_thread_t thread)/* I - Thread ID */
-{
-  (void)thread;
 }
 
 

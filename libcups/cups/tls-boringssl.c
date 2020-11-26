@@ -29,9 +29,7 @@
 
 static char		*tls_keypath = NULL;
 					/* Server cert keychain path */
-static int		tls_options = -1,/* Options for TLS connections */
-  tls_min_version = _HTTP_TLS_1_0,
-  tls_max_version = _HTTP_TLS_MAX;
+static int		tls_options = -1;/* Options for TLS connections */
 
 
 /*
@@ -311,11 +309,9 @@ _httpTLSRead(http_t *http,		/* I - Connection to server */
  */
 
 void
-_httpTLSSetOptions(int options, int min_version, int max_version)		/* I - Options */
+_httpTLSSetOptions(int options)		/* I - Options */
 {
   tls_options = options;
-  tls_min_version = min_version;
-  tls_max_version = max_version;
 }
 
 
@@ -353,8 +349,8 @@ _httpTLSStart(http_t *http)		/* I - Connection to server */
   }
 
   context = SSL_CTX_new(TLS_method());
-  SSL_CTX_set_min_proto_version(context, tls_min_version);
-  SSL_CTX_set_max_proto_version(context, tls_max_version);
+  if (tls_options & _HTTP_TLS_DENY_TLS10)
+    SSL_CTX_set_min_proto_version(context, TLS1_1_VERSION);
 
   bio = BIO_new(_httpBIOMethods());
   BIO_ctrl(bio, BIO_C_SET_FILE_PTR, 0, (char *)http);

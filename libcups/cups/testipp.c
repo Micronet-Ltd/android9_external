@@ -20,12 +20,12 @@
 #include "file.h"
 #include "string-private.h"
 #include "ipp-private.h"
-#ifdef _WIN32
+#ifdef WIN32
 #  include <io.h>
 #else
 #  include <unistd.h>
 #  include <fcntl.h>
-#endif /* _WIN32 */
+#endif /* WIN32 */
 
 
 /*

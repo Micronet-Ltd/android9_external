@@ -1,7 +1,7 @@
 /*
  * File test program for CUPS.
  *
- * Copyright 2007-2018 by Apple Inc.
+ * Copyright 2007-2015 by Apple Inc.
  * Copyright 1997-2007 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
@@ -22,11 +22,14 @@
 #include "file.h"
 #include <stdlib.h>
 #include <time.h>
-#ifdef _WIN32
+#ifdef HAVE_LIBZ
+#  include <zlib.h>
+#endif /* HAVE_LIBZ */
+#ifdef WIN32
 #  include <io.h>
 #else
 #  include <unistd.h>
-#endif /* _WIN32 */
+#endif /* WIN32 */
 #include <fcntl.h>
 
 
@@ -50,10 +53,10 @@ main(int  argc,				/* I - Number of command-line arguments */
   int		status;			/* Exit status */
   char		filename[1024];		/* Filename buffer */
   cups_file_t	*fp;			/* File pointer */
-#ifndef _WIN32
+#ifndef WIN32
   int		fds[2];			/* Open file descriptors */
   cups_file_t	*fdfile;		/* File opened with cupsFileOpenFd() */
-#endif /* !_WIN32 */
+#endif /* !WIN32 */
   int		count;			/* Number of lines in file */
 
 
@@ -81,7 +84,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 
     status += random_tests();
 
-#ifndef _WIN32
+#ifndef WIN32
    /*
     * Test fdopen and close without reading...
     */
@@ -115,7 +118,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 
       puts("PASS");
     }
-#endif /* !_WIN32 */
+#endif /* !WIN32 */
 
    /*
     * Count lines in psglyphs, rewind, then count again.
@@ -171,13 +174,13 @@ main(int  argc,				/* I - Number of command-line arguments */
     */
 
     fputs("\ncupsFileFind: ", stdout);
-#ifdef _WIN32
+#ifdef WIN32
     if (cupsFileFind("notepad.exe", "C:/WINDOWS", 1, filename, sizeof(filename)) &&
 	cupsFileFind("notepad.exe", "C:/WINDOWS;C:/WINDOWS/SYSTEM32", 1, filename, sizeof(filename)))
 #else
     if (cupsFileFind("cat", "/bin", 1, filename, sizeof(filename)) &&
 	cupsFileFind("cat", "/bin:/usr/bin", 1, filename, sizeof(filename)))
-#endif /* _WIN32 */
+#endif /* WIN32 */
       printf("PASS (%s)\n", filename);
     else
     {

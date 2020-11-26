@@ -1,8 +1,8 @@
 /*
  * TLS support code for CUPS on macOS.
  *
- * Copyright © 2007-2018 by Apple Inc.
- * Copyright © 1997-2007 by Easy Software Products, all rights reserved.
+ * Copyright 2007-2017 by Apple Inc.
+ * Copyright 1997-2007 by Easy Software Products, all rights reserved.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
@@ -53,9 +53,7 @@ static char		*tls_keypath = NULL;
 					/* Server cert keychain path */
 static _cups_mutex_t	tls_mutex = _CUPS_MUTEX_INITIALIZER;
 					/* Mutex for keychain/certs */
-static int		tls_options = -1,/* Options for TLS connections */
-			tls_min_version = _HTTP_TLS_1_0,
-			tls_max_version = _HTTP_TLS_MAX;
+static int		tls_options = -1;/* Options for TLS connections */
 
 
 /*
@@ -809,6 +807,7 @@ httpCredentialsString(
     CFStringRef		cf_name;	/* CF common name string */
     char		name[256];	/* Common name associated with cert */
     time_t		expiration;	/* Expiration date of cert */
+    _cups_md5_state_t	md5_state;	/* MD5 state */
     unsigned char	md5_digest[16];	/* MD5 result */
 
     if ((cf_name = SecCertificateCopySubjectSummary(secCert)) != NULL)
@@ -821,7 +820,9 @@ httpCredentialsString(
 
     expiration = (time_t)(SecCertificateNotValidAfter(secCert) + kCFAbsoluteTimeIntervalSince1970);
 
-    cupsHashData("md5", first->data, first->datalen, md5_digest, sizeof(md5_digest));
+    _cupsMD5Init(&md5_state);
+    _cupsMD5Append(&md5_state, first->data, (int)first->datalen);
+    _cupsMD5Finish(&md5_state, md5_digest);
 
     snprintf(buffer, bufsize, "%s / %s / %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X", name, httpGetDateString(expiration), md5_digest[0], md5_digest[1], md5_digest[2], md5_digest[3], md5_digest[4], md5_digest[5], md5_digest[6], md5_digest[7], md5_digest[8], md5_digest[9], md5_digest[10], md5_digest[11], md5_digest[12], md5_digest[13], md5_digest[14], md5_digest[15]);
 
@@ -1138,16 +1139,10 @@ _httpTLSRead(http_t *http,		/* I - HTTP connection */
  */
 
 void
-_httpTLSSetOptions(int options,		/* I - Options */
-                   int min_version,	/* I - Minimum TLS version */
-                   int max_version)	/* I - Maximum TLS version */
+_httpTLSSetOptions(int options)		/* I - Options */
 {
   if (!(options & _HTTP_TLS_SET_DEFAULT) || tls_options < 0)
-  {
-    tls_options     = options;
-    tls_min_version = min_version;
-    tls_max_version = max_version;
-  }
+    tls_options = options;
 }
 
 
@@ -1179,7 +1174,7 @@ _httpTLSStart(http_t *http)		/* I - HTTP connection */
   {
     DEBUG_puts("4_httpTLSStart: Setting defaults.");
     _cupsSetDefaults();
-    DEBUG_printf(("4_httpTLSStart: tls_options=%x, tls_min_version=%d, tls_max_version=%d", tls_options, tls_min_version, tls_max_version));
+    DEBUG_printf(("4_httpTLSStart: tls_options=%x", tls_options));
   }
 
 #ifdef HAVE_SECKEYCHAINOPEN
@@ -1222,25 +1217,22 @@ _httpTLSStart(http_t *http)		/* I - HTTP connection */
 
   if (!error)
   {
-    static const SSLProtocol protocols[] =	/* Min/max protocol versions */
-    {
-      kSSLProtocol3,
-      kTLSProtocol1,
-      kTLSProtocol11,
-      kTLSProtocol12,
-      kTLSProtocol13
-    };
+    SSLProtocol minProtocol;
 
-    if (tls_min_version < _HTTP_TLS_MAX)
-    {
-      error = SSLSetProtocolVersionMin(http->tls, protocols[tls_min_version]);
-      DEBUG_printf(("4_httpTLSStart: SSLSetProtocolVersionMin(%d), error=%d", protocols[tls_min_version], (int)error));
-    }
+    if (tls_options & _HTTP_TLS_DENY_TLS10)
+      minProtocol = kTLSProtocol11;
+    else if (tls_options & _HTTP_TLS_ALLOW_SSL3)
+      minProtocol = kSSLProtocol3;
+    else
+      minProtocol = kTLSProtocol1;
 
-    if (!error && tls_max_version < _HTTP_TLS_MAX)
+    error = SSLSetProtocolVersionMin(http->tls, minProtocol);
+    DEBUG_printf(("4_httpTLSStart: SSLSetProtocolVersionMin(%d), error=%d", minProtocol, (int)error));
+
+    if (!error && (tls_options & _HTTP_TLS_ONLY_TLS10))
     {
-      error = SSLSetProtocolVersionMax(http->tls, protocols[tls_max_version]);
-      DEBUG_printf(("4_httpTLSStart: SSLSetProtocolVersionMax(%d), error=%d", protocols[tls_max_version], (int)error));
+      error = SSLSetProtocolVersionMax(http->tls, kTLSProtocol1);
+      DEBUG_printf(("4_httpTLSStart: SSLSetProtocolVersionMax(kTLSProtocol1), error=%d", (int)error));
     }
   }
 
@@ -1540,28 +1532,7 @@ _httpTLSStart(http_t *http)		/* I - HTTP connection */
 
   if (!error)
   {
-    int			done = 0;	/* Are we done yet? */
-    double		old_timeout;	/* Old timeout value */
-    http_timeout_cb_t	old_cb;		/* Old timeout callback */
-    void		*old_data;	/* Old timeout data */
-
-   /*
-    * Enforce a minimum timeout of 10 seconds for the TLS handshake...
-    */
-
-    old_timeout  = http->timeout_value;
-    old_cb       = http->timeout_cb;
-    old_data     = http->timeout_data;
-
-    if (!old_cb || old_timeout < 10.0)
-    {
-      DEBUG_puts("4_httpTLSStart: Setting timeout to 10 seconds.");
-      httpSetTimeout(http, 10.0, NULL, NULL);
-    }
-
-   /*
-    * Do the TLS handshake...
-    */
+    int done = 0;			/* Are we done yet? */
 
     while (!error && !done)
     {
@@ -1682,12 +1653,6 @@ _httpTLSStart(http_t *http)		/* I - HTTP connection */
 	    break;
       }
     }
-
-   /*
-    * Restore the previous timeout settings...
-    */
-
-    httpSetTimeout(http, old_timeout, old_cb, old_data);
   }
 
   if (error)
@@ -1899,9 +1864,7 @@ http_cdsa_copy_server(
   DEBUG_printf(("4http_cdsa_copy_server: Returning %p.", (void *)certificates));
 
   return (certificates);
-
 #else
-  (void)common_name;
 
   if (!tls_selfsigned)
     return (NULL);
@@ -2122,7 +2085,7 @@ http_cdsa_read(
 
   http = (http_t *)connection;
 
-  if (!http->blocking || http->timeout_value > 0.0)
+  if (!http->blocking)
   {
    /*
     * Make sure we have data before we read...

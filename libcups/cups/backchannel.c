@@ -19,12 +19,12 @@
 
 #include "cups.h"
 #include <errno.h>
-#ifdef _WIN32
+#ifdef WIN32
 #  include <io.h>
 #  include <fcntl.h>
 #else
 #  include <sys/time.h>
-#endif /* _WIN32 */
+#endif /* WIN32 */
 
 
 /*
@@ -77,11 +77,11 @@ cupsBackChannelRead(char   *buffer,	/* I - Buffer to read into */
   * Read bytes from the pipe...
   */
 
-#ifdef _WIN32
+#ifdef WIN32
   return ((ssize_t)_read(3, buffer, (unsigned)bytes));
 #else
   return (read(3, buffer, bytes));
-#endif /* _WIN32 */
+#endif /* WIN32 */
 }
 
 
@@ -139,11 +139,11 @@ cupsBackChannelWrite(
     * Write bytes to the pipe...
     */
 
-#ifdef _WIN32
+#ifdef WIN32
     count = (ssize_t)_write(3, buffer, (unsigned)(bytes - total));
 #else
     count = write(3, buffer, bytes - total);
-#endif /* _WIN32 */
+#endif /* WIN32 */
 
     if (count < 0)
     {

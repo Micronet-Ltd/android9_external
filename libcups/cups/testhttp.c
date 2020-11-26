@@ -1,8 +1,8 @@
 /*
  * HTTP test program for CUPS.
  *
- * Copyright © 2007-2018 by Apple Inc.
- * Copyright © 1997-2006 by Easy Software Products.
+ * Copyright 2007-2014 by Apple Inc.
+ * Copyright 1997-2006 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
  * property of Apple Inc. and are protected by Federal copyright
@@ -120,9 +120,6 @@ static uri_test_t	uri_tests[] =	/* URI test data */
 			  { HTTP_URI_STATUS_OK, "ipp://%22%23%2F%3A%3C%3E%3F%40%5B%5C%5D%5E%60%7B%7C%7D/",
 			    "ipp", "", "\"#/:<>?@[\\]^`{|}", "/", 631, 0,
 			    HTTP_URI_CODING_MOST  },
-			  { HTTP_URI_STATUS_UNKNOWN_SCHEME, "smb://server/Some%20Printer",
-			    "smb", "", "server", "/Some Printer", 0, 0,
-			    HTTP_URI_CODING_ALL },
 
 			  /* Missing scheme */
 			  { HTTP_URI_STATUS_MISSING_SCHEME, "/path/to/file/index.html",
@@ -151,9 +148,6 @@ static uri_test_t	uri_tests[] =	/* URI test data */
 			    HTTP_URI_CODING_MOST  },
 
 			  /* Bad scheme */
-			  { HTTP_URI_STATUS_BAD_SCHEME, "://server/ipp",
-			    "", "", "", "", 0, 0,
-			    HTTP_URI_CODING_MOST  },
 			  { HTTP_URI_STATUS_BAD_SCHEME, "bad_scheme://server/resource",
 			    "", "", "", "", 0, 0,
 			    HTTP_URI_CODING_MOST  },
@@ -186,9 +180,6 @@ static uri_test_t	uri_tests[] =	/* URI test data */
 			    HTTP_URI_CODING_MOST  },
 
 			  /* Bad resource */
-			  { HTTP_URI_STATUS_BAD_RESOURCE, "mailto:\r\nbla",
-			    "mailto", "", "", "", 0, 0,
-			    HTTP_URI_CODING_MOST  },
 			  { HTTP_URI_STATUS_BAD_RESOURCE, "http://server/index.html%",
 			    "http", "", "server", "", 80, 0,
 			    HTTP_URI_CODING_MOST  },
@@ -340,40 +331,6 @@ main(int  argc,				/* I - Number of command-line arguments */
 
     if (!j)
       puts("PASS");
-
-#if 0
-   /*
-    * _httpDigest()
-    */
-
-    fputs("_httpDigest(MD5): ", stdout);
-    if (!_httpDigest(buffer, sizeof(buffer), "MD5", "Mufasa", "http-auth@example.org", "Circle of Life", "7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", 1, "f2/wE4q74E6zIJEtWaHKaf5wv/H5QzzpXusqGemxURZJ", "auth", "GET", "/dir/index.html"))
-    {
-      failures ++;
-      puts("FAIL (unable to calculate hash)");
-    }
-    else if (strcmp(buffer, "8ca523f5e9506fed4657c9700eebdbec"))
-    {
-      failures ++;
-      printf("FAIL (got \"%s\", expected \"8ca523f5e9506fed4657c9700eebdbec\")\n", buffer);
-    }
-    else
-      puts("PASS");
-
-    fputs("_httpDigest(SHA-256): ", stdout);
-    if (!_httpDigest(buffer, sizeof(buffer), "SHA-256", "Mufasa", "http-auth@example.org", "Circle of Life", "7ypf/xlj9XXwfDPEoM4URrv/xwf94BcCAzFZH4GiTo0v", 1, "f2/wE4q74E6zIJEtWaHKaf5wv/H5QzzpXusqGemxURZJ", "auth", "GET", "/dir/index.html"))
-    {
-      failures ++;
-      puts("FAIL (unable to calculate hash)");
-    }
-    else if (strcmp(buffer, "753927fa0e85d155564e2e272a28d1802ca10daf4496794697cf8db5856cb6c1"))
-    {
-      failures ++;
-      printf("FAIL (got \"%s\", expected \"753927fa0e85d155564e2e272a28d1802ca10daf4496794697cf8db5856cb6c1\")\n", buffer);
-    }
-    else
-      puts("PASS");
-#endif /* 0 */
 
    /*
     * httpGetHostname()
@@ -633,8 +590,6 @@ main(int  argc,				/* I - Number of command-line arguments */
 
   for (i = 1; i < argc; i ++)
   {
-    int new_auth;
-
     if (!strcmp(argv[i], "-o"))
     {
       i ++;
@@ -718,8 +673,6 @@ main(int  argc,				/* I - Number of command-line arguments */
 
     printf("Checking file \"%s\"...\n", resource);
 
-    new_auth = 0;
-
     do
     {
       if (!_cups_strcasecmp(httpGetField(http, HTTP_FIELD_CONNECTION), "close"))
@@ -732,13 +685,9 @@ main(int  argc,				/* I - Number of command-line arguments */
 	}
       }
 
-      if (http->authstring && !strncmp(http->authstring, "Digest ", 7) && !new_auth)
-        _httpSetDigestAuthString(http, http->nextnonce, "HEAD", resource);
-
       httpClearFields(http);
       httpSetField(http, HTTP_FIELD_AUTHORIZATION, httpGetAuthString(http));
       httpSetField(http, HTTP_FIELD_ACCEPT_LANGUAGE, "en");
-
       if (httpHead(http, resource))
       {
         if (httpReconnect2(http, 30000, NULL))
@@ -755,8 +704,6 @@ main(int  argc,				/* I - Number of command-line arguments */
 
       while ((status = httpUpdate(http)) == HTTP_STATUS_CONTINUE);
 
-      new_auth = 0;
-
       if (status == HTTP_STATUS_UNAUTHORIZED)
       {
        /*
@@ -769,9 +716,7 @@ main(int  argc,				/* I - Number of command-line arguments */
 	* See if we can do authentication...
 	*/
 
-        new_auth = 1;
-
-	if (cupsDoAuthentication(http, "HEAD", resource))
+	if (cupsDoAuthentication(http, "GET", resource))
 	{
 	  status = HTTP_STATUS_CUPS_AUTHORIZATION_CANCELED;
 	  break;
@@ -819,8 +764,6 @@ main(int  argc,				/* I - Number of command-line arguments */
     printf("Requesting file \"%s\" (Accept-Encoding: %s)...\n", resource,
            encoding ? encoding : "identity");
 
-    new_auth = 0;
-
     do
     {
       if (!_cups_strcasecmp(httpGetField(http, HTTP_FIELD_CONNECTION), "close"))
@@ -832,9 +775,6 @@ main(int  argc,				/* I - Number of command-line arguments */
           break;
 	}
       }
-
-      if (http->authstring && !strncmp(http->authstring, "Digest ", 7) && !new_auth)
-        _httpSetDigestAuthString(http, http->nextnonce, "GET", resource);
 
       httpClearFields(http);
       httpSetField(http, HTTP_FIELD_AUTHORIZATION, httpGetAuthString(http));
@@ -857,8 +797,6 @@ main(int  argc,				/* I - Number of command-line arguments */
 
       while ((status = httpUpdate(http)) == HTTP_STATUS_CONTINUE);
 
-      new_auth = 0;
-
       if (status == HTTP_STATUS_UNAUTHORIZED)
       {
        /*
@@ -870,8 +808,6 @@ main(int  argc,				/* I - Number of command-line arguments */
        /*
 	* See if we can do authentication...
 	*/
-
-        new_auth = 1;
 
 	if (cupsDoAuthentication(http, "GET", resource))
 	{

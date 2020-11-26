@@ -1,7 +1,7 @@
 /*
- * MD5 password support for CUPS (deprecated).
+ * MD5 password support for CUPS.
  *
- * Copyright 2007-2017 by Apple Inc.
+ * Copyright 2007-2010 by Apple Inc.
  * Copyright 1997-2005 by Easy Software Products.
  *
  * These coded instructions, statements, and computer programs are the
@@ -17,15 +17,12 @@
  * Include necessary headers...
  */
 
-#include <cups/cups.h>
 #include "http-private.h"
 #include "string-private.h"
 
 
 /*
  * 'httpMD5()' - Compute the MD5 sum of the username:group:password.
- *
- * @deprecated@
  */
 
 char *					/* O - MD5 sum */
@@ -34,6 +31,7 @@ httpMD5(const char *username,		/* I - User name */
         const char *passwd,		/* I - Password string */
 	char       md5[33])		/* O - MD5 string */
 {
+  _cups_md5_state_t	state;		/* MD5 state info */
   unsigned char		sum[16];	/* Sum data */
   char			line[256];	/* Line to sum */
 
@@ -43,13 +41,15 @@ httpMD5(const char *username,		/* I - User name */
   */
 
   snprintf(line, sizeof(line), "%s:%s:%s", username, realm, passwd);
-  cupsHashData("md5", (unsigned char *)line, strlen(line), sum, sizeof(sum));
+  _cupsMD5Init(&state);
+  _cupsMD5Append(&state, (unsigned char *)line, (int)strlen(line));
+  _cupsMD5Finish(&state, sum);
 
  /*
   * Return the sum...
   */
 
-  return ((char *)cupsHashString(sum, sizeof(sum), md5, 33));
+  return (httpMD5String(sum, md5));
 }
 
 
@@ -57,8 +57,6 @@ httpMD5(const char *username,		/* I - User name */
  * 'httpMD5Final()' - Combine the MD5 sum of the username, group, and password
  *                    with the server-supplied nonce value, method, and
  *                    request-uri.
- *
- * @deprecated@
  */
 
 char *					/* O - New sum */
@@ -67,6 +65,7 @@ httpMD5Final(const char *nonce,		/* I - Server nonce value */
 	     const char *resource,	/* I - Resource path */
              char       md5[33])	/* IO - MD5 sum */
 {
+  _cups_md5_state_t	state;		/* MD5 state info */
   unsigned char		sum[16];	/* Sum data */
   char			line[1024];	/* Line of data */
   char			a2[33];		/* Hash of method and resource */
@@ -77,8 +76,10 @@ httpMD5Final(const char *nonce,		/* I - Server nonce value */
   */
 
   snprintf(line, sizeof(line), "%s:%s", method, resource);
-  cupsHashData("md5", (unsigned char *)line, strlen(line), sum, sizeof(sum));
-  cupsHashString(sum, sizeof(sum), a2, sizeof(a2));
+  _cupsMD5Init(&state);
+  _cupsMD5Append(&state, (unsigned char *)line, (int)strlen(line));
+  _cupsMD5Finish(&state, sum);
+  httpMD5String(sum, a2);
 
  /*
   * Then combine A1 (MD5 of username, realm, and password) with the nonce
@@ -87,16 +88,17 @@ httpMD5Final(const char *nonce,		/* I - Server nonce value */
   */
 
   snprintf(line, sizeof(line), "%s:%s:%s", md5, nonce, a2);
-  cupsHashData("md5", (unsigned char *)line, strlen(line), sum, sizeof(sum));
 
-  return ((char *)cupsHashString(sum, sizeof(sum), md5, 33));
+  _cupsMD5Init(&state);
+  _cupsMD5Append(&state, (unsigned char *)line, (int)strlen(line));
+  _cupsMD5Finish(&state, sum);
+
+  return (httpMD5String(sum, md5));
 }
 
 
 /*
  * 'httpMD5String()' - Convert an MD5 sum to a character string.
- *
- * @deprecated@
  */
 
 char *					/* O - MD5 sum in hex */
@@ -104,5 +106,23 @@ httpMD5String(const unsigned char *sum,	/* I - MD5 sum data */
               char                md5[33])
 					/* O - MD5 sum in hex */
 {
-  return ((char *)cupsHashString(sum, 16, md5, 33));
+  int		i;			/* Looping var */
+  char		*md5ptr;		/* Pointer into MD5 string */
+  static const char hex[] = "0123456789abcdef";
+					/* Hex digits */
+
+
+ /*
+  * Convert the MD5 sum to hexadecimal...
+  */
+
+  for (i = 16, md5ptr = md5; i > 0; i --, sum ++)
+  {
+    *md5ptr++ = hex[*sum >> 4];
+    *md5ptr++ = hex[*sum & 15];
+  }
+
+  *md5ptr = '\0';
+
+  return (md5);
 }

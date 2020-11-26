@@ -69,11 +69,11 @@ int						/* O - 0 on success, -1 on failure */
 httpAddrClose(http_addr_t *addr,		/* I - Listen address or @code NULL@ */
               int         fd)			/* I - Socket file descriptor */
 {
-#ifdef _WIN32
+#ifdef WIN32
   if (closesocket(fd))
 #else
   if (close(fd))
-#endif /* _WIN32 */
+#endif /* WIN32 */
     return (-1);
 
 #ifdef AF_LOCAL
@@ -258,9 +258,9 @@ httpAddrListen(http_addr_t *addr,	/* I - Address to bind to */
   * Close on exec...
   */
 
-#ifndef _WIN32
+#ifndef WIN32
   fcntl(fd, F_SETFD, fcntl(fd, F_GETFD) | FD_CLOEXEC);
-#endif /* !_WIN32 */
+#endif /* !WIN32 */
 
 #ifdef SO_NOSIGPIPE
  /*

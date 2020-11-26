@@ -19,15 +19,15 @@
 
 #include "sidechannel.h"
 #include "cups-private.h"
-#ifdef _WIN32
+#ifdef WIN32
 #  include <io.h>
 #else
 #  include <unistd.h>
-#endif /* _WIN32 */
-#ifndef _WIN32
+#endif /* WIN32 */
+#ifndef WIN32
 #  include <sys/select.h>
 #  include <sys/time.h>
-#endif /* !_WIN32 */
+#endif /* !WIN32 */
 #ifdef HAVE_POLL
 #  include <poll.h>
 #endif /* HAVE_POLL */

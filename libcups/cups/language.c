@@ -21,11 +21,11 @@
 #ifdef HAVE_LANGINFO_H
 #  include <langinfo.h>
 #endif /* HAVE_LANGINFO_H */
-#ifdef _WIN32
+#ifdef WIN32
 #  include <io.h>
 #else
 #  include <unistd.h>
-#endif /* _WIN32 */
+#endif /* WIN32 */
 #ifdef HAVE_COREFOUNDATION_H
 #  include <CoreFoundation/CoreFoundation.h>
 #endif /* HAVE_COREFOUNDATION_H */
